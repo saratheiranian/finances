@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Inbox, Ledger{% endblock %}
+{% block content %}
+<header class="page-head"><div>
+  <h1>Inbox</h1>
+  <p class="sub">{% if rows %}{{ rows | length }} line{{ '' if rows | length == 1 else 's' }} waiting. Choose a category for each, tick the ones you're happy with, and approve them together. Suggestions come from how you filed the same shop before.{% else %}Nothing waiting.{% endif %}</p>
+</div></header>
+
+{% if rows %}
+<datalist id="categories">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist>
+<form method="post" action="{{ url_for('inbox_approve') }}" id="inbox-form">
+  {% if unsuggested and ai_enabled %}
+  <div class="ai-bar">
+    <span>{{ unsuggested }} line{{ '' if unsuggested == 1 else 's' }} without a suggestion.</span>
+    <button type="button" data-ai-suggest="{{ url_for('inbox_ai_suggest') }}">Suggest the rest with AI</button>
+    <span class="ai-note" aria-live="polite"></span>
+  </div>
+  {% endif %}
+  <div class="bulk-bar">
+    <label class="check"><input type="checkbox" data-select-all> Select all</label>
+    <label class="check"><input type="checkbox" data-select-suggested> Select all with a suggestion</label>
+    <button class="primary" data-approve>Approve selected</button>
+  </div>
+  <div class="scroll"><table class="inbox">
+    <thead><tr><th></th><th>Date</th><th>Description</th><th class="num">Amount</th><th>Category</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><input type="checkbox" name="ids" value="{{ r.id }}" aria-label="Select {{ r.description }}"
+                 {% if r.suggestion %}data-suggested{% endif %}></td>
+      <td class="nowrap">{{ r.date }}</td>
+      <td>{{ r.description }}
+        {% for kind, text in r.warnings %}<span class="warn-tag {{ kind }}" title="{{ text }}">{{ {'duplicate': 'Possible duplicate', 'unusual': 'Unusual amount', 'new': 'New shop'}[kind] }}</span>{% endfor %}
+      </td>
+      <td class="num {{ 'pos' if r.amount > 0 }}">{{ r.amount | money }}</td>
+      <td>
+        <input name="category_{{ r.id }}" list="categories" value="{{ r.suggestion.category if r.suggestion else '' }}"
+               placeholder="{{ 'income:...' if r.amount > 0 else 'expenses:...' }}" aria-label="Category for {{ r.description }}">
+        {% if r.suggestion %}
+        <small class="source {{ r.suggestion.source }}" title="{{ r.suggestion.because }}">
+          {{ 'From history' if r.suggestion.source == 'history' else 'Model' }} · {{ (r.suggestion.confidence * 100) | round | int }}%</small>
+        {% else %}<small class="source ai" hidden></small>{% endif %}
+      </td>
+      <td><button class="link" form="skip-{{ r.id }}">Skip</button></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</form>
+{% for r in rows %}<form id="skip-{{ r.id }}" method="post" action="{{ url_for('inbox_skip', staged_id=r.id) }}"></form>{% endfor %}
+<p class="hint">Suggestions come first from how you filed the same shop before, then from a Naive Bayes model trained on your history for shops it hasn't seen. Hover over a suggestion to see why. Warnings flag lines worth checking before you approve.</p>
+<p class="hint">Money in can go to income, or to an expense category if it's a refund. Money out can't be income. Transfers between your own accounts use the other account, e.g. assets:hsbc:savings. Missing a category? <a href="{{ url_for('accounts') }}">Open it first</a>.</p>
+{% else %}
+<div class="empty"><p>Upload a statement to fill your inbox.</p><a class="button primary" href="{{ url_for('upload') }}">Upload statement</a></div>
+{% endif %}
+{% endblock %}

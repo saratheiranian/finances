@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Accounts, Ledger{% endblock %}
+{% block content %}
+<header class="page-head"><div>
+  <h1>Accounts</h1>
+  <p class="sub">Names start with assets, liabilities, equity, income or expenses, with levels separated by colons.</p>
+</div></header>
+
+<div class="two-col">
+  <section class="panel">
+    <h2>Open an account</h2>
+    <form method="post" class="stack">
+      <label>Name <input name="name" required placeholder="expenses:food:groceries" autocapitalize="off" spellcheck="false"></label>
+      <div><button class="primary">Open account</button></div>
+    </form>
+    <p class="hint">Examples: assets:hsbc:current, income:salary, expenses:transport, liabilities:credit-card.</p>
+  </section>
+
+  {% if bank_accounts %}
+  <section class="panel">
+    <h2>Opening balance</h2>
+    <form method="post" action="{{ url_for('opening_balance') }}" class="stack">
+      <label>Account
+        <select name="account">{% for a in bank_accounts %}<option value="{{ a.name }}">{{ a.name }}</option>{% endfor %}</select></label>
+      <div class="inline">
+        <label>Date <input type="date" name="date" required></label>
+        <label>Amount (£) <input name="amount" inputmode="decimal" required placeholder="850.00"></label>
+      </div>
+      <div><button class="primary">Record</button></div>
+    </form>
+    <p class="hint">What the account held the day before your first statement starts.</p>
+  </section>
+  {% endif %}
+</div>
+
+{% if balances %}
+<h2>All accounts</h2>
+<section class="panel">
+  <table class="balances">
+    {% for b in balances %}
+    <tr class="depth-{{ b.name.count(':') }}">
+      <td>{{ b.name.split(':')[-1] | replace('-', ' ') }}{% if b.name.count(':') == 0 %} <span class="muted">({{ b.name }})</span>{% endif %}</td>
+      <td class="num {{ 'neg' if b.balance < 0 }}">{{ b.balance | money }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+{% endif %}
+{% endblock %}

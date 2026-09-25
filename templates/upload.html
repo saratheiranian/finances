@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Upload statement, Ledger{% endblock %}
+{% block content %}
+<header class="page-head"><div>
+  <h1>Upload a statement</h1>
+  <p class="sub">Your HSBC CSV is checked line by line and must add up to the penny before anything is imported. Imported lines go to your inbox for review; nothing is posted automatically.</p>
+</div></header>
+
+{% if not accounts %}
+<div class="empty"><p>First, open the bank account this statement belongs to.</p>
+  <a class="button primary" href="{{ url_for('accounts') }}">Open an account</a></div>
+{% else %}
+<section class="panel">
+  <form method="post" enctype="multipart/form-data" class="stack">
+    <label>Statement file (.csv)
+      <input type="file" name="statement" accept=".csv,text/csv" required></label>
+    <label>Account
+      <select name="account" required>
+        {% for a in accounts %}<option value="{{ a.name }}">{{ a.name }}</option>{% endfor %}
+      </select></label>
+    <div class="inline">
+      <label>Opening balance (£)
+        <input name="opening" inputmode="decimal" required placeholder="850.00"></label>
+      <label>Closing balance (£)
+        <input name="closing" inputmode="decimal" required placeholder="1471.54"></label>
+    </div>
+    <p class="hint">The balances before the first transaction and after the last one, as shown in online banking. They're how the ledger proves nothing was missed or misread.</p>
+    <label class="check"><input type="checkbox" name="allow_gap"> This statement doesn't follow on from the last one I imported</label>
+    <div><button class="primary">Check and import</button></div>
+  </form>
+</section>
+{% endif %}
+
+{% if imports %}
+<h2>Imported so far</h2>
+<div class="scroll"><table>
+  <thead><tr><th>Period</th><th>Account</th><th>File</th><th class="num">Opening</th><th class="num">Closing</th><th class="num">Waiting</th></tr></thead>
+  <tbody>
+  {% for i in imports %}
+  <tr><td>{{ i.period_start }} to {{ i.period_end }}</td><td>{{ i.account }}</td><td class="muted">{{ i.filename }}</td>
+      <td class="num">{{ i.opening | money }}</td><td class="num">{{ i.closing | money }}</td><td class="num">{{ i.pending or 0 }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+{% endblock %}

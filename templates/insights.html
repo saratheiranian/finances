@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Insights, Ledger{% endblock %}
+{% block content %}
+<header class="page-head"><div>
+  <h1>Insights</h1>
+  <p class="sub">Patterns found in your statements, as of your latest transaction on {{ as_of.strftime('%-d %B %Y') }}.</p>
+</div></header>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Cash-flow forecast</h2>
+    {% if banks | length > 1 %}
+    <form method="get"><select name="account" onchange="this.form.submit()" aria-label="Account">
+      {% for b in banks %}<option {% if b == account %}selected{% endif %}>{{ b }}</option>{% endfor %}</select></form>
+    {% endif %}
+  </div>
+  {% if forecast %}
+  {% set f = forecast %}
+  <div class="kpis compact">
+    <div><span>Now</span><strong class="num">{{ f.start | money }}</strong></div>
+    <div><span>In 60 days</span><strong class="num {{ 'neg' if f.end < 0 }}">{{ f.end | money }}</strong></div>
+    <div><span>Lowest point</span><strong class="num {{ 'neg' if f.low.balance < 0 }}">{{ f.low.balance | money }}</strong>
+      <small>{{ f.low.date.strftime('%-d %b') }}</small></div>
+  </div>
+  <svg class="forecast" viewBox="0 0 640 180" role="img" aria-label="Projected balance over the next 60 days">
+    {% if zero_y is not none and zero_y < 180 %}<line x1="10" x2="630" y1="{{ zero_y }}" y2="{{ zero_y }}" class="zero"/>{% endif %}
+    <polyline points="{{ chart }}" class="line"/>
+  </svg>
+  {% if f.low.balance < 0 %}<p class="flash error">At this rate {{ account }} goes overdrawn around {{ f.low.date.strftime('%-d %B') }}.</p>{% endif %}
+  <p class="hint">Starts from today's balance, adds the {{ f.recurring_count }} recurring payment{{ '' if f.recurring_count == 1 else 's' }} below on their predicted dates, and subtracts typical everyday spending of {{ f.daily_rate | money }} a day (your non-recurring spending over the last 60 days, averaged per day). A deliberately simple, explainable model.</p>
+  {% else %}<p class="muted">Open a bank account and import a statement to see a forecast.</p>{% endif %}
+</section>
+
+<section class="panel">
+  <h2>Recurring payments</h2>
+  {% if recurring %}
+  <div class="scroll"><table>
+    <thead><tr><th>Payee</th><th>Every</th><th class="num">Amount</th><th>Next expected</th><th class="num">Per year</th></tr></thead>
+    <tbody>
+    {% for r in recurring %}
+    <tr>
+      <td>{{ r.description }}
+        {% if r.price_change %}<span class="warn-tag unusual">Price {{ 'up' if (r.price_change.to | abs) > (r.price_change.from | abs) else 'down' }}: {{ (r.price_change.from | abs) | money }} → {{ (r.price_change.to | abs) | money }}</span>{% endif %}
+        {% if r.overdue %}<span class="warn-tag duplicate">Late or cancelled?</span>{% endif %}
+        {% if r.confidence == 'likely' %}<span class="warn-tag new" title="Seen only twice so far">Likely</span>{% endif %}
+      </td>
+      <td>{{ r.period[:-2] if r.period != 'monthly' else 'month' }}</td>
+      <td class="num {{ 'pos' if not r.outgoing }}">{{ r.amount | money }}</td>
+      <td class="nowrap">{{ r.next_due.strftime('%-d %b %Y') }}</td>
+      <td class="num">{{ r.yearly_cost | money }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <p class="hint">Outgoing recurring payments cost <strong>{{ yearly_subscriptions | money }}</strong> a year. A payee counts as recurring when every gap between its payments fits a weekly, monthly or yearly cycle; the next date comes from the median gap.</p>
+  {% else %}<p class="muted">Nothing recurring found yet. It needs at least two payments to the same payee, so import a second month.</p>{% endif %}
+</section>
+
+<section class="panel">
+  <h2>How good are the category suggestions?</h2>
+  {% set e = evaluation %}
+  {% if e.examples %}
+  <p>Replayed your {{ e.examples }} approved lines in date order. Before learning each one, each method predicted it using only what came earlier, exactly as it would have in real use.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Method</th><th class="num">Offered a suggestion</th><th class="num">Suggestion was right</th></tr></thead>
+    <tbody>
+      {% for key, label in [('lookup', 'Merchant history only'), ('model', 'Naive Bayes model only'), ('combined', 'Both (what the inbox uses)')] %}
+      {% set m = e.methods[key] %}
+      <tr {% if key == 'combined' %}class="strong"{% endif %}><td>{{ label }}</td>
+        <td class="num">{{ (m.coverage * 100) | round | int }}%</td>
+        <td class="num">{{ ((m.accuracy * 100) | round | int ~ '%') if m.accuracy is not none else '–' }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  <p class="hint">"Offered" is how often a method made a suggestion; "right" is how often that suggestion matched what you chose. The model stays quiet until it has {{ min_examples }} examples and only speaks up when it's at least 50% sure, trading coverage for accuracy.</p>
+  {% else %}<p class="muted">Approve some inbox lines and this will measure how well suggestions work.</p>{% endif %}
+</section>
+{% endblock %}

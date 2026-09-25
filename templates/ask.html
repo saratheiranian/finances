@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Ask, Ledger{% endblock %}
+{% block content %}
+<header class="page-head"><div>
+  <h1>Ask about your money</h1>
+  <p class="sub">The AI only translates your question into a structured query. The app checks that query and calculates the answer itself, so the numbers are always exact.</p>
+</div></header>
+
+{% if ai_enabled %}
+<form method="post" class="ask-form">
+  <input name="question" value="{{ question }}" placeholder="How much did I spend on eating out last month?" aria-label="Your question" autofocus>
+  <button class="primary">Ask</button>
+</form>
+<p class="hint">Try: "What was my biggest grocery shop?", "Spending by category in October", "How many times did I use Uber?", "Average Deliveroo order".</p>
+{% else %}
+<p class="flash">Plain-English questions need an AI key: add <code>GEMINI_API_KEY=...</code> to a <code>.env</code> file in the ledger folder and restart. You can still build the same query by hand below.</p>
+{% endif %}
+
+{% if error %}<p class="flash error">{{ error }}</p>{% endif %}
+
+{% if result %}
+<section class="panel answer">
+  <p class="answer-text">{{ result.sentence }}</p>
+  {% if result.groups %}
+  <div class="scroll"><table>
+    <thead><tr><th>{{ plan.group_by | capitalize }}</th><th class="num">{{ plan.metric | capitalize }}</th><th class="num">Transactions</th></tr></thead>
+    <tbody>{% for key, value, n in result.groups %}
+      <tr><td>{{ key }}</td><td class="num">{{ value if plan.metric == 'count' else value | money }}</td><td class="num">{{ n }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% elif plan.metric in ('list', 'largest') and result.rows %}
+  <div class="scroll"><table>
+    <tbody>{% for r in (result.rows | sort(attribute='value', reverse=true))[:(1 if plan.metric == 'largest' else 50)] %}
+      <tr><td class="nowrap">{{ r.date }}</td><td>{{ r.description }}</td><td class="muted">{{ r.category }}</td><td class="num">{{ r.value | money }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+  <details><summary>The query that was run</summary><pre>{{ plan_json | tojson(indent=2) }}</pre></details>
+</section>
+{% endif %}
+
+<details class="panel manual" {% if not ai_enabled %}open{% endif %}>
+  <summary>Build a query by hand</summary>
+  <form method="post" class="stack">
+    <div class="inline">
+      <label>Show <select name="metric">{% for m in metrics %}<option {% if plan and plan.metric == m %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></label>
+      <label>Of <select name="flow"><option>spending</option><option {% if plan and plan.flow == 'income' %}selected{% endif %}>income</option></select></label>
+      <label>Category <select name="category"><option value="">All</option>
+        {% for c in categories %}<option {% if plan and plan.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></label>
+      <label>Shop contains <input name="merchant" value="{{ plan.merchant or '' if plan else '' }}" placeholder="optional"></label>
+    </div>
+    <div class="inline">
+      <label>From <input type="date" name="start" value="{{ plan.start if plan else default_start }}" required></label>
+      <label>To <input type="date" name="end" value="{{ plan.end if plan else default_end }}" required></label>
+      <label>Group by <select name="group_by"><option value="">Nothing</option>
+        {% for gname in groups if gname %}<option {% if plan and plan.group_by == gname %}selected{% endif %}>{{ gname }}</option>{% endfor %}</select></label>
+      <button class="primary">Run</button>
+    </div>
+  </form>
+</details>
+{% endblock %}

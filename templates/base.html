@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Ledger{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="shell">
+  <nav class="side" aria-label="Main">
+    <a class="brand" href="{{ url_for('overview') }}">Ledger</a>
+    {% set here = request.endpoint %}
+    <a href="{{ url_for('overview') }}" {% if here == 'overview' %}aria-current="page"{% endif %}>Overview</a>
+    <a href="{{ url_for('upload') }}" {% if here == 'upload' %}aria-current="page"{% endif %}>Upload statement</a>
+    <a href="{{ url_for('inbox') }}" {% if here == 'inbox' %}aria-current="page"{% endif %}>
+      Inbox{% if inbox_count %} <span class="badge">{{ inbox_count }}</span>{% endif %}</a>
+    <a href="{{ url_for('insights') }}" {% if here == 'insights' %}aria-current="page"{% endif %}>Insights</a>
+    <a href="{{ url_for('ask') }}" {% if here == 'ask' %}aria-current="page"{% endif %}>Ask</a>
+    <a href="{{ url_for('journal') }}" {% if here == 'journal' %}aria-current="page"{% endif %}>Journal</a>
+    <a href="{{ url_for('accounts') }}" {% if here == 'accounts' %}aria-current="page"{% endif %}>Accounts</a>
+    <p class="ai-status {{ 'on' if ai_enabled else 'off' }}">AI {{ "on" if ai_enabled else "off" }}</p>
+  </nav>
+  <main>
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+      <p class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ message }}</p>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

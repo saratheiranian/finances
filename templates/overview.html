@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>{{ month | month_label }}</h1>
+    <p class="sub">Where the money went, from your approved transactions.</p>
+  </div>
+  {% if months | length > 1 %}
+  <form method="get" class="inline">
+    <select name="month" aria-label="Month" onchange="this.form.submit()">
+      {% for m in months %}<option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m | month_label }}</option>{% endfor %}
+    </select>
+    <noscript><button>Show</button></noscript>
+  </form>
+  {% endif %}
+</header>
+
+{% if not has_accounts %}
+<div class="empty">
+  <p>Welcome. Start by opening your bank account and recording its opening balance, then upload a statement.</p>
+  <a class="button primary" href="{{ url_for('accounts') }}">Set up accounts</a>
+</div>
+{% else %}
+{% set s = summary %}
+<div class="kpis">
+  <div><span>Money in</span><strong class="num">{{ s.income | money }}</strong></div>
+  <div><span>Spent</span><strong class="num">{{ s.spending | money }}</strong>
+    {% if s.previous_spending %}
+      {% set diff = s.spending - s.previous_spending %}
+      <small class="{{ 'up' if diff > 0 else 'down' }}">{{ '+' if diff > 0 }}{{ diff | money }} vs last month</small>
+    {% endif %}</div>
+  <div><span>Kept</span><strong class="num {{ 'neg' if s.kept < 0 }}">{{ s.kept | money }}</strong>
+    {% if s.kept_share is not none %}<small>{{ (s.kept_share * 100) | round | int }}% of income</small>{% endif %}</div>
+</div>
+
+<div class="two-col">
+  <section class="panel">
+    <h2>Spending by category</h2>
+    {% if categories %}
+    {% set peak = categories | map(attribute='amount') | max %}
+    <ul class="cats">
+      {% for c in categories if c.amount or c.previous %}
+      <li>
+        <span class="cat-name">{{ c.label | replace('-', ' ') | capitalize }}</span>
+        <span class="cat-bar"><span style="--w: {{ ((c.amount / peak * 100) if peak > 0 and c.amount > 0 else 0) | round }}%"></span></span>
+        <span class="num">{{ c.amount | money }}</span>
+        {% if c.previous %}
+        <small class="{{ 'up' if c.change > 0 else 'down' if c.change < 0 else '' }}">{{ '+' if c.change > 0 }}{{ c.change | money }}</small>
+        {% else %}<small class="muted">new</small>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="hint">Change compared with {{ month | month_label }}'s previous month. Refunds lower a category's total.</p>
+    {% else %}
+    <p class="muted">No spending recorded this month.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Balances</h2>
+    <table class="balances">
+      {% for b in balances %}
+      <tr class="depth-{{ b.name.count(':') }}">
+        <td>{{ b.name.split(':')[-1] | replace('-', ' ') }}</td>
+        <td class="num {{ 'neg' if b.balance < 0 }}">{{ b.balance | money }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </section>
+</div>
+
+<section class="panel">
+  <div class="panel-head"><h2>Budgets</h2></div>
+  {% if budgets %}
+  <ul class="budgets">
+    {% for b in budgets %}
+    <li class="{{ 'over' if b.over else 'warn' if b.heading_over }}">
+      <div class="brow">
+        <span>{{ b.category.split(':', 1)[1] | replace('-', ' ') | capitalize }}</span>
+        <span class="num">{{ b.spent | money }} of {{ b.budget | money }}</span>
+      </div>
+      <span class="meter"><span style="--w: {{ [b.share * 100, 100] | min | round }}%"></span></span>
+      <small>
+        {% if b.over %}Over by {{ (b.spent - b.budget) | money }}.
+        {% elif b.heading_over %}On pace for {{ b.projected | money }}: about {{ (b.projected - b.budget) | money }} over by month end.
+        {% elif b.in_progress %}On pace for {{ b.projected | money }}.
+        {% else %}{{ (b.budget - b.spent) | money }} left over.{% endif %}
+      </small>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted">No budgets yet. Set a monthly limit for a category below.</p>{% endif %}
+  {% if expense_categories %}
+  <form method="post" action="{{ url_for('budgets') }}" class="inline budget-form">
+    <label>Category
+      <select name="category">{% for c in expense_categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></label>
+    <label>Monthly limit (£) <input name="amount" inputmode="decimal" placeholder="150.00" required></label>
+    <button>Save</button>
+  </form>
+  <p class="hint">Set a limit of 0 to remove a budget. For the latest month, the pace projects this month's spending to the end of the month.</p>
+  {% endif %}
+</section>
+
+{% if unusual %}
+<section class="panel">
+  <h2>Unusual this month</h2>
+  <ul class="unusual">
+    {% for u in unusual %}
+    <li><strong>{{ u.description }}</strong> <span class="num">{{ u.amount | money }}</span>
+      <small class="muted">{{ u.date }}, {{ u.category }}. Usually around {{ u.typical | money }}.</small></li>
+    {% endfor %}
+  </ul>
+  <p class="hint">Flagged using a robust z-score: distance from the category's median, measured in median absolute deviations, so one big purchase can't hide itself by inflating the average.</p>
+</section>
+{% endif %}
+
+{% if trend | length > 1 %}
+<section class="panel">
+  <h2>Last {{ trend | length }} months</h2>
+  {% set top = [trend | map(attribute='income') | max, trend | map(attribute='spending') | max, 1] | max %}
+  <div class="trend" role="img" aria-label="Income and spending by month">
+    {% for t in trend %}
+    <div class="tcol" title="{{ t.month | month_label }}: {{ t.income | money }} in, {{ t.spending | money }} spent">
+      <div class="tbars">
+        <span class="in" style="--h: {{ (t.income / top * 100) | round }}%"></span>
+        <span class="out" style="--h: {{ ([t.spending, 0] | max / top * 100) | round }}%"></span>
+      </div>
+      <span class="tlabel">{{ (t.month | month_label)[:3] }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="legend"><span class="key in"></span> Money in <span class="key out"></span> Spent</p>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

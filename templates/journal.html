@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Journal, Ledger{% endblock %}
+{% block content %}
+<header class="page-head"><div>
+  <h1>Journal</h1>
+  <p class="sub">Every transaction, newest first. Entries are permanent: to correct one, reverse it and it's cancelled by its mirror image.</p>
+</div></header>
+{% if txns %}
+<div class="journal">
+  {% for t in txns %}
+  <article class="txn {% if t.reversed_by %}reversed{% endif %} {% if t.reverses_id %}reversal{% endif %}">
+    <header>
+      <span class="tid">#{{ t.id }}</span>
+      <span class="nowrap">{{ t.date }}</span>
+      <span class="desc">{{ t.description }}</span>
+      {% if t.reversed_by %}<span class="tag">reversed by #{{ t.reversed_by }}</span>
+      {% elif not t.reverses_id %}
+      <form method="post" action="{{ url_for('reverse', transaction_id=t.id) }}" data-confirm="Reverse #{{ t.id }}? This posts a cancelling transaction.">
+        <button class="link">Reverse</button>
+      </form>
+      {% endif %}
+    </header>
+    <table>
+      {% for e in t.entries %}
+      <tr><td>{{ e.name }}</td><td class="num">{{ e.amount | money if e.amount > 0 }}</td><td class="num">{{ (-e.amount) | money if e.amount < 0 }}</td></tr>
+      {% endfor %}
+    </table>
+  </article>
+  {% endfor %}
+</div>
+<p class="hint">Left column: debits (money arriving in that account). Right column: credits (money leaving it). Each transaction's two columns are equal.</p>
+{% else %}
+<p class="empty">No transactions yet.</p>
+{% endif %}
+{% endblock %}
